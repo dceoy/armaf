@@ -1,0 +1,15 @@
+---
+version: '3'
+
+services:
+  armaf:
+    container_name: armaf
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dceoy/armaf:latest
+    volumes:
+      - ${PWD}:/wd
+    working_dir: /wd
+    entrypoint:
+      - armaf
