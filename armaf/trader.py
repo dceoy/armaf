@@ -24,11 +24,11 @@ class APIResponseError(RuntimeError):
 class OandaTraderCore(object):
     def __init__(self, instruments, oanda_account_id, oanda_api_token,
                  oanda_environment='trade', betting_strategy='constant',
-                 scanned_transaction_count=0, unit_margin_ratio=0.01,
-                 preserved_margin_ratio=0.01, take_profit_limit_ratio=0.01,
-                 trailing_stop_limit_ratio=0.01, stop_loss_limit_ratio=0.01,
-                 ignore_api_error=False, retry_count=1, log_dir_path=None,
-                 quiet=False, dry_run=False):
+                 margin_lack_reset=False, scanned_transaction_count=0,
+                 unit_margin_ratio=0.01, preserved_margin_ratio=0.01,
+                 take_profit_limit_ratio=0.01, trailing_stop_limit_ratio=0.01,
+                 stop_loss_limit_ratio=0.01, ignore_api_error=False,
+                 retry_count=1, log_dir_path=None, quiet=False, dry_run=False):
         self.__logger = logging.getLogger(__name__)
         self.__api = Context(
             hostname=f'api-fx{oanda_environment}.oanda.com',
@@ -37,6 +37,7 @@ class OandaTraderCore(object):
         self.__account_id = oanda_account_id
         self.instruments = instruments
         self.betting_system = BettingSystem(strategy=betting_strategy)
+        self.__margin_lack_reset = margin_lack_reset
         self.__scanned_transaction_count = int(scanned_transaction_count)
         self.__unit_margin_ratio = float(unit_margin_ratio)
         self.__preserved_margin_ratio = float(preserved_margin_ratio)
@@ -331,7 +332,7 @@ class OandaTraderCore(object):
             / self.unit_costs[instrument]
         )
         self.__logger.debug(f'unit_size: {unit_size}')
-        bet_size = self.betting_system.calculate_size_by_pl(
+        desired_bet_size = self.betting_system.calculate_size_by_pl(
             unit_size=unit_size,
             inst_pl_txns=[
                 t for t in self.txn_list if (
@@ -340,11 +341,14 @@ class OandaTraderCore(object):
                 )
             ]
         )
-        self.__logger.debug(f'bet_size: {bet_size}')
-        return (
-            int(min(bet_size, avail_size, max_size)) *
-            {'long': 1, 'short': -1}[side]
-        )
+        self.__logger.debug(f'desired_bet_size: {desired_bet_size}')
+        if desired_bet_size <= avail_size:
+            bet_size = desired_bet_size
+        elif self.__margin_lack_reset:
+            bet_size = unit_size
+        else:
+            bet_size = avail_size
+        return (int(min(bet_size, max_size)) * {'long': 1, 'short': -1}[side])
 
     def print_log(self, data):
         self.__logger.debug(f'console log: {data}')

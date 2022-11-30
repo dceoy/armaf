@@ -9,10 +9,11 @@ Usage:
         [--oanda-env=<str>] [<instrument>...]
     armaf trade [--debug|--info] [--oanda-account=<id>] [--oanda-token=<str>]
         [--oanda-env=<str>] [--quiet] [--granularity=<str>]
-        [--betting-strategy=<str>] [--scanned-transaction-count=<int>]
-        [--unit-margin=<ratio>] [--preserved-margin=<ratio>]
-        [--take-profit-limit=<float>] [--trailing-stop-limit=<float>]
-        [--stop-loss-limit=<float>] [--max-spread=<float>] [--sleeping=<ratio>]
+        [--betting-strategy=<str>] [--margin-lack-reset]
+        [--scanned-transaction-count=<int>] [--unit-margin=<ratio>]
+        [--preserved-margin=<ratio>] [--take-profit-limit=<float>]
+        [--trailing-stop-limit=<float>] [--stop-loss-limit=<float>]
+        [--max-spread=<float>] [--sleeping=<ratio>]
         [--trigger-ssr-window=<int>] [--trend-ssr-window=<int>]
         [--min-arima-p=<int>] [--max-arima-p=<int>] [--min-arima-d=<int>]
         [--max-arima-d=<int>] [--min-arima-q=<int>] [--max-arima-q=<int>]
@@ -37,6 +38,8 @@ Options:
                         Set the betting strategy [default: constant]
                         { constant, martingale, paroli, dalembert,
                           oscarsgrind }
+    --margin-lack-reset
+                        Reset betting on margin lack
     --scanned-transaction-count=<int>
                         Set the transaction count to scan [default: 0]
     --unit-margin=<ratio>
@@ -115,6 +118,7 @@ def main():
             instruments=args['<instrument>'],
             granularity=args['--granularity'],
             betting_strategy=args['--betting-strategy'],
+            margin_lack_reset=args['--margin-lack-reset'],
             scanned_transaction_count=int(args['--scanned-transaction-count']),
             unit_margin_ratio=float(args['--unit-margin']),
             preserved_margin_ratio=float(args['--preserved-margin']),
