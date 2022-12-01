@@ -10,26 +10,29 @@ from .arima import OptimizedArima
 
 
 class SignalDetector(object):
-    def __init__(self, trigger_ssr_window=900, trend_ssr_window=900,
-                 arima_p_range=(0, 1), arima_d_range=(0, 1),
-                 arima_q_range=(0, 1), test_size=900, forecast_size=60,
-                 significance_level=0.01, volume_factor=0):
+    def __init__(self, trigger_ssr_window=900, trigger_test_size=900,
+                 trigger_forecast_size=60, trend_ssr_window=900,
+                 trend_test_size=900, trend_forecast_size=60,
+                 significance_level=0.01, arima_p_range=(0, 1),
+                 arima_d_range=(0, 1), arima_q_range=(0, 1), volume_factor=0):
         self.__logger = logging.getLogger(__name__)
         self.trigger_ssr_window = trigger_ssr_window
+        self.trigger_test_size = trigger_test_size
+        self.trigger_forecast_size = trigger_forecast_size
         self.trend_ssr_window = trend_ssr_window
+        self.trend_test_size = trend_test_size
+        self.trend_forecast_size = trend_forecast_size
+        self.significance_level = significance_level
         self.arima_p_range = arima_p_range
         self.arima_d_range = arima_d_range
         self.arima_q_range = arima_q_range
         for k in 'pdq':
             a, b = getattr(self, f'arima_{k}_range')
             assert 0 <= a <= b, f'invalid ARIMA {k} range'
-        self.test_size = test_size
-        self.forecast_size = forecast_size
-        self.significance_level = significance_level
         self.volume_factor = volume_factor
         self.min_sample_size = (
             max(self.trigger_ssr_window, self.trend_ssr_window)
-            + self.test_size
+            + max(self.trigger_test_size, self.trigger_test_size)
         )
         self.trigger_ssr_arima_order = (None, None, None)
         self.trend_ssr_arima_order = (None, None, None)
@@ -50,14 +53,26 @@ class SignalDetector(object):
             ) = self._calculate_forecast_ci(
                 y=self._calculate_signed_sharpe_ratio(
                     df_lrr=df_lrr, window=self.trigger_ssr_window
-                ).tail(self.trigger_ssr_window + self.test_size)
+                ).tail(self.trigger_ssr_window + self.trigger_test_size),
+                test_size=self.trigger_test_size,
+                forecast_size=self.trigger_forecast_size,
+                significance_level=self.significance_level,
+                arima_p_range=self.arima_p_range,
+                arima_d_range=self.arima_d_range,
+                arima_q_range=self.arima_q_range
             )
             (
                 trend_ssr, trend_ssr_ci, self.trend_ssr_arima_order
             ) = self._calculate_forecast_ci(
                 y=self._calculate_signed_sharpe_ratio(
                     df_lrr=df_lrr, window=self.trend_ssr_window
-                ).tail(self.trend_ssr_window + self.test_size)
+                ).tail(self.trend_ssr_window + self.trend_test_size),
+                test_size=self.trend_test_size,
+                forecast_size=self.trend_forecast_size,
+                significance_level=self.significance_level,
+                arima_p_range=self.arima_p_range,
+                arima_d_range=self.arima_d_range,
+                arima_q_range=self.arima_q_range
             )
         self.__logger.info(
             'trend_ssr, trend_ssr_ci, trigger_ssr, trigger_ssr_ci:'
@@ -84,8 +99,8 @@ class SignalDetector(object):
             'trigger_ssr_ci_upper': trigger_ssr_ci[1], 'act': act,
             'log_str': '{0:^52}|{1:^52}|'.format(
                 'SSR({0},{1},{2};{3}):{4:>9}{5:>16}'.format(
-                    self.trigger_ssr_window, self.test_size,
-                    self.forecast_size,
+                    self.trigger_ssr_window, self.trigger_test_size,
+                    self.trigger_forecast_size,
                     ','.join(
                         str(
                             getattr(self, f'arima_{k}_range')[0]
@@ -99,7 +114,8 @@ class SignalDetector(object):
                     )
                 ),
                 'SSR({0},{1},{2};{3}):{4:>9}{5:>16}'.format(
-                    self.trend_ssr_window, self.test_size, self.forecast_size,
+                    self.trend_ssr_window, self.trend_test_size,
+                    self.trend_forecast_size,
                     ','.join(
                         str(
                             getattr(self, f'arima_{k}_range')[0]
@@ -137,17 +153,19 @@ class SignalDetector(object):
             / pl_ratio_ewm.std()
         )
 
-    def _calculate_forecast_ci(self, y):
+    @staticmethod
+    def _calculate_forecast_ci(y, test_size, forecast_size,
+                               significance_level=0.01, arima_p_range=(0, 1),
+                               arima_d_range=(0, 1), arima_q_range=(0, 1)):
         oa = OptimizedArima(
-            y=y, test_size=self.test_size, p_range=self.arima_p_range,
-            d_range=self.arima_d_range, q_range=self.arima_q_range,
+            y=y, test_size=test_size, p_range=arima_p_range,
+            d_range=arima_d_range, q_range=arima_q_range,
             model_kw={
                 'enforce_stationarity': False, 'enforce_invertibility': False
             }
         )
         forecasts = oa.forecast_frame(
-            alpha=self.significance_level,
-            get_forecast_kw={'steps': self.forecast_size}
+            alpha=significance_level, get_forecast_kw={'steps': forecast_size}
         ).iloc[-1]
         return (
             forecasts['mean'],

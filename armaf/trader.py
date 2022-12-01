@@ -432,7 +432,7 @@ class OandaTraderCore(object):
                 'unexpected response:' + os.linesep + pformat(res.body)
             )
 
-    def is_margin_lack(self, instrument):
+    def has_margin_lack(self, instrument):
         return (
             not self.pos_dict.get(instrument) and
             self.balance * self.__preserved_margin_ratio >= self.margin_avail
@@ -441,10 +441,12 @@ class OandaTraderCore(object):
 
 class AutoTrader(OandaTraderCore):
     def __init__(self, granularity='S5', max_spread_ratio=0.01,
-                 sleeping_ratio=0, trigger_ssr_window=60, trend_ssr_window=300,
+                 sleeping_ratio=0, trigger_ssr_window=60,
+                 trigger_test_size=900, trigger_forecast_size=60,
+                 trend_ssr_window=300, trend_test_size=900,
+                 trend_forecast_size=60, significance_level=0.01,
                  min_arima_p=0, max_arima_p=1, min_arima_d=0, max_arima_d=1,
-                 min_arima_q=0, max_arima_q=1, test_size=900, forecast_size=60,
-                 significance_level=0.01, volume_factor=0, **kwargs):
+                 min_arima_q=0, max_arima_q=1, volume_factor=0, **kwargs):
         super().__init__(**kwargs)
         self.__logger = logging.getLogger(__name__)
         self.__sleeping_ratio = float(sleeping_ratio)
@@ -452,22 +454,19 @@ class AutoTrader(OandaTraderCore):
         self.__max_spread_ratio = float(max_spread_ratio)
         self.signal_detector = SignalDetector(
             trigger_ssr_window=int(trigger_ssr_window),
+            trigger_test_size=int(trigger_test_size),
+            trigger_forecast_size=int(trigger_forecast_size),
             trend_ssr_window=int(trend_ssr_window),
+            trend_test_size=int(trend_test_size),
+            trend_forecast_size=int(trend_forecast_size),
+            significance_level=float(significance_level),
             arima_p_range=(int(min_arima_p), int(max_arima_p)),
             arima_d_range=(int(min_arima_d), int(max_arima_d)),
             arima_q_range=(int(min_arima_q), int(max_arima_q)),
-            test_size=int(test_size), forecast_size=int(forecast_size),
-            significance_level=float(significance_level),
             volume_factor=float(volume_factor)
         )
         self.__cache_length = min(
-            (
-                max(
-                    self.signal_detector.trigger_ssr_window,
-                    self.signal_detector.trend_ssr_window
-                ) + self.signal_detector.test_size
-            ) * 2,
-            5000
+            self.signal_detector.min_sample_size * 2, 5000
         )
         self.__logger.debug('vars(self):' + os.linesep + pformat(vars(self)))
 
@@ -543,7 +542,7 @@ class AutoTrader(OandaTraderCore):
                    or not sig['act'])):
             act = None
             state = '{0} {1}'.format(pos_pct, pos['side'].upper())
-        elif self.is_margin_lack(instrument=i):
+        elif self.has_margin_lack(instrument=i):
             act = None
             state = 'LACK OF FUNDS'
         elif self._is_over_spread(df_rate=df_rate):

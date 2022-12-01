@@ -14,11 +14,12 @@ Usage:
         [--preserved-margin=<ratio>] [--take-profit-limit=<float>]
         [--trailing-stop-limit=<float>] [--stop-loss-limit=<float>]
         [--max-spread=<float>] [--sleeping=<ratio>]
-        [--trigger-ssr-window=<int>] [--trend-ssr-window=<int>]
-        [--min-arima-p=<int>] [--max-arima-p=<int>] [--min-arima-d=<int>]
-        [--max-arima-d=<int>] [--min-arima-q=<int>] [--max-arima-q=<int>]
-        [--test-size=<int>] [--forecast-size=<int>]
-        [--significance-level=<float>] [--volume-factor=<float>]
+        [--trigger-ssr-window=<int>] [--trigger-test-size=<int>]
+        [--trigger-forecast-size=<int>] [--trend-ssr-window=<int>]
+        [--trend-test-size=<int>] [--trend-forecast-size=<int>]
+        [--significance-level=<float>] [--min-arima-p=<int>]
+        [--max-arima-p=<int>] [--min-arima-d=<int>] [--max-arima-d=<int>]
+        [--min-arima-q=<int>] [--max-arima-q=<int>] [--volume-factor=<float>]
         [--retry-count=<int>] [--dry-run] <instrument>...
 
 Options:
@@ -57,8 +58,18 @@ Options:
     --sleeping=<ratio>  Set the daily sleeping ratio [default: 0]
     --trigger-ssr-window=<int>
                         Specify the window for trigger SSR signal [default: 12]
+    --trigger-test-size=<int>
+                        Specify the trigger test step size [default: 180]
+    --trigger-forecast-size=<int>
+                        Specify the trigger forecast step size [default: 12]
     --trend-ssr-window=<int>
                         Specify the window for trend SSR signal [default: 60]
+    --trend-test-size=<int>
+                        Specify the trend test step size [default: 180]
+    --trend-forecast-size=<int>
+                        Specify the trend forecast step size [default: 12]
+    --significance-level=<float>
+                        Set the significance level [default: 0.01]
     --min-arima-p=<int>
                         Specify the min AR component of ARIMA [default: 0]
     --max-arima-p=<int>
@@ -71,12 +82,6 @@ Options:
                         Specify the min MA component of ARIMA [default: 0]
     --max-arima-q=<int>
                         Specify the max MA component of ARIMA [default: 0]
-    --test-size=<int>
-                        Specify the test size for optimization [default: 180]
-    --forecast-size=<int>
-                        Specify the forecast step size [default: 12]
-    --significance-level=<float>
-                        Set the significance level [default: 0.01]
     --volume-factor=<float>
                         Specify the volume weight factor [default: 0]
     --retry-count=<int>
@@ -128,15 +133,18 @@ def main():
             max_spread_ratio=float(args['--max-spread']),
             sleeping_ratio=float(args['--sleeping']),
             trigger_ssr_window=args['--trigger-ssr-window'],
+            trigger_test_size=args['--trigger-test-size'],
+            trigger_forecast_size=args['--trigger-forecast-size'],
             trend_ssr_window=args['--trend-ssr-window'],
+            trend_test_size=args['--trend-test-size'],
+            trend_forecast_size=args['--trend-forecast-size'],
+            significance_level=float(args['--significance-level']),
             min_arima_p=args['--min-arima-p'],
             max_arima_p=args['--max-arima-p'],
             min_arima_d=args['--min-arima-d'],
             max_arima_d=args['--max-arima-d'],
             min_arima_q=args['--min-arima-q'],
-            max_arima_q=args['--max-arima-q'], test_size=args['--test-size'],
-            forecast_size=args['--forecast-size'],
-            significance_level=float(args['--significance-level']),
+            max_arima_q=args['--max-arima-q'],
             volume_factor=float(args['--volume-factor']),
             retry_count=int(args['--retry-count']), log_dir_path=None,
             quiet=args['--quiet'], dry_run=args['--dry-run']
