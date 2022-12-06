@@ -53,19 +53,21 @@ class OandaTraderCore(object):
             self.__log_dir_path = str(log_dir)
             os.makedirs(self.__log_dir_path, exist_ok=True)
             self.__order_log_path = str(log_dir.joinpath('order.json.txt'))
-            self.__txn_log_path = str(log_dir.joinpath('txn.json.txt'))
+            self.__transaction_log_path = str(
+                log_dir.joinpath('transaction.json.txt')
+            )
         else:
             self.__log_dir_path = None
             self.__order_log_path = None
-            self.__txn_log_path = None
-        self.__anchored_txn_id = None
-        self.__last_txn_id = None
-        self.pos_dict = dict()
+            self.__transaction_log_path = None
+        self.__anchored_transaction_id = None
+        self.__last_transaction_id = None
+        self.position_dict = dict()
         self.balance = None
         self.margin_avail = None
         self.__account_currency = None
-        self.txn_list = list()
-        self.__inst_dict = dict()
+        self.transaction_list = list()
+        self.__instrument_dict = dict()
         self.price_dict = dict()
         self.unit_costs = dict()
 
@@ -91,8 +93,8 @@ class OandaTraderCore(object):
         res = self.__api.account.get(accountID=self.__account_id)
         if 'account' in res.body and 'lastTransactionID' in res.body:
             acc = res.body['account']
-            if not self.__anchored_txn_id:
-                self.__anchored_txn_id = max(
+            if not self.__anchored_transaction_id:
+                self.__anchored_transaction_id = max(
                     0,
                     int(res.body['lastTransactionID'])
                     - self.__scanned_transaction_count
@@ -104,7 +106,7 @@ class OandaTraderCore(object):
         self.balance = float(acc.balance)
         self.margin_avail = float(acc.marginAvailable)
         self.__account_currency = acc.currency
-        self.pos_dict = {
+        self.position_dict = {
             p.instrument: (
                 {'side': 'long', 'units': int(p.long.units)} if p.long.tradeIDs
                 else {'side': 'short', 'units': int(p.short.units)}
@@ -114,7 +116,7 @@ class OandaTraderCore(object):
     @retry_if_connection_fails
     def _place_order(self, closing=False, **kwargs):
         if closing:
-            p = self.pos_dict.get(kwargs['instrument'])
+            p = self.position_dict.get(kwargs['instrument'])
             f_args = {
                 'accountID': self.__account_id, **kwargs,
                 **{
@@ -150,42 +152,47 @@ class OandaTraderCore(object):
 
     def refresh_oanda_dicts(self):
         self._refresh_account_dicts()
-        self._refresh_txn_list()
-        self._refresh_inst_dict()
+        self._refresh_transaction_list()
+        self._refresh_instrument_dict()
         self._refresh_price_dict()
         self._refresh_unit_costs()
 
     @retry_if_connection_fails
-    def _refresh_txn_list(self):
-        init = (not self.__last_txn_id)
+    def _refresh_transaction_list(self):
+        init = (not self.__last_transaction_id)
         res = self.__api.transaction.since(
             accountID=self.__account_id,
-            id=(self.__anchored_txn_id if init else self.__last_txn_id)
+            id=(
+                self.__anchored_transaction_id if init
+                else self.__last_transaction_id
+            )
         )
         if 'lastTransactionID' in res.body:
-            self.__last_txn_id = res.body['lastTransactionID']
+            self.__last_transaction_id = res.body['lastTransactionID']
         else:
             raise APIResponseError(
                 'unexpected response:' + os.linesep + pformat(res.body)
             )
         if res.body.get('transactions'):
-            new_txns = [t.dict() for t in res.body['transactions']]
-            self.__logger.debug(f'new_txns: {new_txns}')
-            self.txn_list = self.txn_list + new_txns
-            if not init and new_txns:
+            new_transactions = [t.dict() for t in res.body['transactions']]
+            self.__logger.debug(f'new_transactions: {new_transactions}')
+            self.transaction_list = self.transaction_list + new_transactions
+            if not init and new_transactions:
                 self.__logger.info(
-                    'new transactions:' + os.linesep + pformat(new_txns)
+                    'new transactions:' + os.linesep
+                    + pformat(new_transactions)
                 )
-                if self.__txn_log_path:
+                if self.__transaction_log_path:
                     self._write_data(
-                        json.dumps(new_txns), path=self.__txn_log_path
+                        json.dumps(new_transactions),
+                        path=self.__transaction_log_path
                     )
 
     @retry_if_connection_fails
-    def _refresh_inst_dict(self):
+    def _refresh_instrument_dict(self):
         res = self.__api.account.instruments(accountID=self.__account_id)
         if 'instruments' in res.body:
-            self.__inst_dict = {
+            self.__instrument_dict = {
                 c.name: vars(c) for c in res.body['instruments']
             }
         else:
@@ -197,7 +204,7 @@ class OandaTraderCore(object):
     def _refresh_price_dict(self):
         res = self.__api.pricing.get(
             accountID=self.__account_id,
-            instruments=','.join(self.__inst_dict.keys())
+            instruments=','.join(self.__instrument_dict.keys())
         )
         if 'prices' in res.body:
             self.price_dict = {
@@ -214,7 +221,7 @@ class OandaTraderCore(object):
     def _refresh_unit_costs(self):
         self.unit_costs = {
             i: self._calculate_bp_value(instrument=i) * float(e['marginRate'])
-            for i, e in self.__inst_dict.items() if i in self.instruments
+            for i, e in self.__instrument_dict.items() if i in self.instruments
         }
 
     def _calculate_bp_value(self, instrument):
@@ -225,7 +232,7 @@ class OandaTraderCore(object):
             bpv = self.price_dict[instrument]['ask']
         else:
             bpv = None
-            for i in self.__inst_dict.keys():
+            for i in self.__instrument_dict.keys():
                 if bpv:
                     break
                 elif i == cur_pair[0] + '_' + self.__account_currency:
@@ -246,11 +253,11 @@ class OandaTraderCore(object):
         return bpv
 
     def design_and_place_order(self, instrument, act):
-        pos = self.pos_dict.get(instrument)
+        pos = self.position_dict.get(instrument)
         if pos and act and (act == 'closing' or act != pos['side']):
             self.__logger.info('Close a position: {}'.format(pos['side']))
             self._place_order(closing=True, instrument=instrument)
-            self._refresh_txn_list()
+            self._refresh_transaction_list()
         if act and act in ['long', 'short']:
             limits = self._determine_order_limits(
                 instrument=instrument, side=act
@@ -269,7 +276,7 @@ class OandaTraderCore(object):
                         'positionFill': 'DEFAULT', **limits
                     }
                 )
-                self._refresh_txn_list()
+                self._refresh_transaction_list()
                 return units
             else:
                 self.__logger.info(f'Skip an order: {act}')
@@ -278,7 +285,7 @@ class OandaTraderCore(object):
             return 0
 
     def _determine_order_limits(self, instrument, side):
-        ie = self.__inst_dict[instrument]
+        ie = self.__instrument_dict[instrument]
         r = self.price_dict[instrument][{'long': 'ask', 'short': 'bid'}[side]]
         ts_range = [
             float(ie['minimumTrailingStopDistance']),
@@ -317,7 +324,7 @@ class OandaTraderCore(object):
         }
 
     def _determine_order_units(self, instrument, side):
-        max_size = int(self.__inst_dict[instrument]['maximumOrderUnits'])
+        max_size = int(self.__instrument_dict[instrument]['maximumOrderUnits'])
         avail_size = max(
             floor(
                 (
@@ -334,8 +341,8 @@ class OandaTraderCore(object):
         self.__logger.debug(f'unit_size: {unit_size}')
         desired_bet_size = self.betting_system.calculate_size_by_pl(
             unit_size=unit_size,
-            inst_pl_txns=[
-                t for t in self.txn_list if (
+            instrument_pl_transactions=[
+                t for t in self.transaction_list if (
                     t.get('instrument') == instrument and t.get('pl') and
                     t.get('units')
                 )
@@ -434,7 +441,7 @@ class OandaTraderCore(object):
 
     def has_margin_lack(self, instrument):
         return (
-            not self.pos_dict.get(instrument) and
+            not self.position_dict.get(instrument) and
             self.balance * self.__preserved_margin_ratio >= self.margin_avail
         )
 
@@ -496,12 +503,12 @@ class AutoTrader(OandaTraderCore):
                 )
             )
         elif st['act'] in ['long', 'short']:
-            st['state'] = 'LACK OF FUNDS'
+            st['state'] = 'ORDER SKIPPED'
         else:
             pass
         self.print_state_line(
             df_rate=df_r,
-            add_str='{0:^7}|{1}{2:^27}|'.format(
+            add_str='{0:^7}|{1}{2:^28}|'.format(
                 self.__granularity, st['log_str'], st['state']
             )
         )
@@ -511,8 +518,8 @@ class AutoTrader(OandaTraderCore):
 
     def determine_sig_state(self, df_rate):
         i = df_rate['instrument'].iloc[-1]
-        pos = self.pos_dict.get(i)
-        pos_pct = '{:.1f}%'.format(
+        pos = self.position_dict.get(i)
+        position_pct = '{:.1f}%'.format(
             round(
                 abs(pos['units'] * self.unit_costs[i] * 100 / self.balance), 1
             ) if pos else 0
@@ -533,7 +540,7 @@ class AutoTrader(OandaTraderCore):
             state = 'TRADING HALTED'
         elif pos and sig['act'] == 'closing':
             act = 'closing'
-            state = '{0} {1} ->'.format(pos_pct, pos['side'].upper())
+            state = '{0} {1} ->'.format(position_pct, pos['side'].upper())
         elif int(self.balance) == 0:
             act = None
             state = 'NO FUND'
@@ -541,7 +548,7 @@ class AutoTrader(OandaTraderCore):
               and ((sig['act'] and sig['act'] == pos['side'])
                    or not sig['act'])):
             act = None
-            state = '{0} {1}'.format(pos_pct, pos['side'].upper())
+            state = '{0} {1}'.format(position_pct, pos['side'].upper())
         elif self.has_margin_lack(instrument=i):
             act = None
             state = 'LACK OF FUNDS'
@@ -563,7 +570,7 @@ class AutoTrader(OandaTraderCore):
         elif pos:
             act = sig['act']
             state = '{0} {1} -> {2}'.format(
-                pos_pct, pos['side'].upper(), sig['act'].upper()
+                position_pct, pos['side'].upper(), sig['act'].upper()
             )
         else:
             act = sig['act']
