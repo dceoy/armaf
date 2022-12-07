@@ -534,7 +534,6 @@ class AutoTrader(OandaTraderCore):
             ]),
             position_side=(pos['side'] if pos else None)
         )
-        sleep_triggers = self._check_volume_and_volatility(instrument=i)
         if not self.price_dict[i]['tradeable']:
             act = None
             state = 'TRADING HALTED'
@@ -555,15 +554,10 @@ class AutoTrader(OandaTraderCore):
         elif self._is_over_spread(df_rate=df_rate):
             act = None
             state = 'OVER-SPREAD'
-        elif sig['act'] != 'closing' and sleep_triggers.all():
+        elif (sig['act'] != 'closing'
+              and self._check_low_sharpe_ratio(instrument=i)):
             act = None
-            state = 'LOW HV & \u0394VOLUME'
-        elif sig['act'] != 'closing' and sleep_triggers['hv_ema']:
-            act = None
-            state = 'LOW HV'
-        elif sig['act'] != 'closing' and sleep_triggers['delta_volume_ema']:
-            act = None
-            state = 'LOW \u0394VOLUME'
+            state = 'LOW SHARPE RATIO'
         elif not sig['act']:
             act = None
             state = '-'
@@ -588,20 +582,20 @@ class AutoTrader(OandaTraderCore):
             >= self.__max_spread_ratio
         )
 
-    def _check_volume_and_volatility(self, instrument, granularity='M4'):
+    def _check_low_sharpe_ratio(self, instrument, granularity='M4'):
         granularity_min = int(granularity[1:])
         span = int(60 / granularity_min)
         return self.fetch_candle_df(
             instrument=instrument, granularity=granularity,
             count=int(14400 / granularity_min), complete=True
-        ).assign(
-            delta_volume_ema=lambda d:
-            np.square(d['volume'].fillna(method='ffill').diff()).ewm(
-                span=span, adjust=False
-            ).mean(),
-            hv_ema=lambda d: np.log(d[['ask', 'bid']].mean(axis=1)).diff().ewm(
-                span=span, adjust=False
-            ).std()
-        )[['delta_volume_ema', 'hv_ema']].pipe(
-            lambda d: (d.iloc[-1] < d.quantile(self.__sleeping_ratio))
+        ).pipe(
+            lambda d:
+            (np.exp(np.log(d[['ask', 'bid']].mean(axis=1)).diff()) - 1)
+        ).pipe(
+            lambda s: (
+                s.ewm(span=span, adjust=False, ignore_na=True).mean()
+                / s.ewm(span=span, adjust=False, ignore_na=True).mean()
+            ).abs()
+        ).pipe(
+            lambda s: (s.iloc[-1] < s.quantile(self.__sleeping_ratio))
         )
