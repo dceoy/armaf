@@ -594,8 +594,8 @@ class AutoTrader(OandaTraderCore):
         ).pipe(
             lambda s: (
                 s.ewm(span=span, adjust=False, ignore_na=True).mean()
-                / s.ewm(span=span, adjust=False, ignore_na=True).mean()
-            ).abs()
+                / s.ewm(span=span, adjust=False, ignore_na=True).std()
+            ).dropna().abs()
         ).pipe(
             lambda s: (s.iloc[-1] < s.quantile(self.__sleeping_ratio))
         )
