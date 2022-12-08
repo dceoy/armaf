@@ -108,8 +108,17 @@ class OandaTraderCore(object):
         self.__account_currency = acc.currency
         self.position_dict = {
             p.instrument: (
-                {'side': 'long', 'units': int(p.long.units)} if p.long.tradeIDs
-                else {'side': 'short', 'units': int(p.short.units)}
+                {
+                    'side': 'long', 'units': int(p.long.units),
+                    'margin_used':
+                    (float(p.marginUsed) if hasattr(p, 'marginUsed') else 0),
+                    'unrealized_pl': float(p.unrealizedPL)
+                } if p.long.tradeIDs else {
+                    'side': 'short', 'units': int(p.short.units),
+                    'margin_used':
+                    (float(p.marginUsed) if hasattr(p, 'marginUsed') else 0),
+                    'unrealized_pl': float(p.unrealizedPL)
+                }
             ) for p in acc.positions if p.long.tradeIDs or p.short.tradeIDs
         }
 
@@ -253,9 +262,9 @@ class OandaTraderCore(object):
         return bpv
 
     def design_and_place_order(self, instrument, act):
-        pos = self.position_dict.get(instrument)
-        if pos and act and (act == 'closing' or act != pos['side']):
-            self.__logger.info('Close a position: {}'.format(pos['side']))
+        p = self.position_dict.get(instrument)
+        if p and act and (act == 'closing' or act != p['side']):
+            self.__logger.info('Close a position: {}'.format(p['side']))
             self._place_order(closing=True, instrument=instrument)
             self._refresh_transaction_list()
         if act and act in ['long', 'short']:
@@ -439,6 +448,16 @@ class OandaTraderCore(object):
                 'unexpected response:' + os.linesep + pformat(res.body)
             )
 
+    def has_profitable_positions(self, instrument):
+        p = self.position_dict.get(instrument)
+        if not p:
+            return False
+        else:
+            return (
+                p['unrealized_pl']
+                > p['margin_used'] * self.__trailing_stop_limit_ratio
+            )
+
     def has_margin_lack(self, instrument):
         return (
             not self.position_dict.get(instrument) and
@@ -494,18 +513,20 @@ class AutoTrader(OandaTraderCore):
                 '-> ',
                 '-> {:.1f}% '.format(
                     round(
-                        abs(
-                            new_units * self.unit_costs[instrument] * 100
-                            / self.balance
+                        self._calculate_margin_pct(
+                            instrument=instrument, new_side=st['act'],
+                            new_units=new_units
                         ),
                         1
                     )
                 )
             )
-        elif st['act'] in ['long', 'short']:
+        elif st['act'] not in ['long', 'short']:
+            pass
+        elif st['state'].startswith('-> '):
             st['state'] = 'ORDER SKIPPED'
         else:
-            pass
+            st['state'] = st['state'].split(' -> ')[0]
         self.print_state_line(
             df_rate=df_r,
             add_str='{0:^7}|{1}{2:^28}|'.format(
@@ -516,14 +537,26 @@ class AutoTrader(OandaTraderCore):
             df_rate=df_r, **{k: v for k, v in st.items() if k != 'log_str'}
         )
 
+    def _calculate_margin_pct(self, instrument, new_side=None, new_units=0):
+        new_margin = (
+            abs(new_units * self.unit_costs[instrument])
+            if new_side and new_units else 0
+        )
+        p = self.position_dict.get(instrument)
+        current_margin = (
+            abs(p['units'] * self.unit_costs[instrument]) if (
+                p and
+                ((not new_side) or (not new_units) or new_side == p['side'])
+            ) else 0
+        )
+        return ((new_margin + current_margin) / self.balance * 100)
+
     def determine_sig_state(self, df_rate):
         i = df_rate['instrument'].iloc[-1]
-        pos = self.position_dict.get(i)
         position_pct = '{:.1f}%'.format(
-            round(
-                abs(pos['units'] * self.unit_costs[i] * 100 / self.balance), 1
-            ) if pos else 0
+            round(self._calculate_margin_pct(instrument=i), 1)
         )
+        pos = self.position_dict.get(i)
         sig = self.signal_detector.detect(
             df_history=pd.concat([
                 self.fetch_candle_df(
@@ -544,8 +577,9 @@ class AutoTrader(OandaTraderCore):
             act = None
             state = 'NO FUND'
         elif (pos
-              and ((sig['act'] and sig['act'] == pos['side'])
-                   or not sig['act'])):
+              and ((sig['act'] and sig['act'] == pos['side']
+                    and (not self.has_profitable_positions(instrument=i)))
+                   or (not sig['act']))):
             act = None
             state = '{0} {1}'.format(position_pct, pos['side'].upper())
         elif self.has_margin_lack(instrument=i):
