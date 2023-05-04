@@ -21,6 +21,10 @@ Usage:
         [--max-arima-p=<int>] [--min-arima-d=<int>] [--max-arima-d=<int>]
         [--min-arima-q=<int>] [--max-arima-q=<int>] [--volume-factor=<float>]
         [--retry-count=<int>] [--dry-run] <instrument>...
+    armaf optimize [--debug|--info] [--oanda-account=<id>]
+        [--oanda-token=<str>] [--oanda-env=<str>] [--quiet]
+        [--min-span=<int>] [--max-span=<int>] [--n-splits=<int>]
+        [--granularity=<str>] [--count=<int>] <instrument>...
 
 Options:
     -h, --help          Print help and exit
@@ -57,41 +61,45 @@ Options:
                         Set the max spread ratio [default: 0.01]
     --sleeping=<ratio>  Set the daily sleeping ratio [default: 0]
     --trigger-ssr-window=<int>
-                        Specify the window for trigger SSR signal [default: 12]
+                        Set the window for trigger SSR signal [default: 12]
     --trigger-test-size=<int>
-                        Specify the trigger test step size [default: 180]
+                        Set the trigger test step size [default: 180]
     --trigger-forecast-size=<int>
-                        Specify the trigger forecast step size [default: 12]
+                        Set the trigger forecast step size [default: 12]
     --trend-ssr-window=<int>
-                        Specify the window for trend SSR signal [default: 60]
+                        Set the window for trend SSR signal [default: 60]
     --trend-test-size=<int>
-                        Specify the trend test step size [default: 180]
+                        Set the trend test step size [default: 180]
     --trend-forecast-size=<int>
-                        Specify the trend forecast step size [default: 12]
+                        Set the trend forecast step size [default: 12]
     --significance-level=<float>
                         Set the significance level [default: 0.01]
     --min-arima-p=<int>
-                        Specify the min AR component of ARIMA [default: 0]
+                        Set the min AR component of ARIMA [default: 0]
     --max-arima-p=<int>
-                        Specify the max AR component of ARIMA [default: 0]
+                        Set the max AR component of ARIMA [default: 0]
     --min-arima-d=<int>
-                        Specify the min I component of ARIMA [default: 0]
+                        Set the min I component of ARIMA [default: 0]
     --max-arima-d=<int>
-                        Specify the max I component of ARIMA [default: 0]
+                        Set the max I component of ARIMA [default: 0]
     --min-arima-q=<int>
-                        Specify the min MA component of ARIMA [default: 0]
+                        Set the min MA component of ARIMA [default: 0]
     --max-arima-q=<int>
-                        Specify the max MA component of ARIMA [default: 0]
+                        Set the max MA component of ARIMA [default: 0]
     --volume-factor=<float>
-                        Specify the volume weight factor [default: 0]
+                        Set the volume weight factor [default: 0]
     --retry-count=<int>
                         Set the retry count due to API errors [default: 9]
     --dry-run           Invoke a trader with dry-run mode
+    --min-span=<int>    Set the min span of EMA [default: 5]
+    --max-span=<int>    Set the max span of EMA [default: 60]
+    --n-splits=<int>    Set the number of splits [default: 10]
+    --count=<int>       Set the number of candles [default: 5000]
 
 Commands:
     close                   Close positions (if not <instrument>, close all)
-    spread                  Print the ratios of spread to price
     trade                   Trade currencies
+    optimize                Optimize EMA span
 
 Arguments:
     <instrument>            Forex instrumnt such as EUR_USD and USD_JPY
@@ -104,6 +112,7 @@ import v20
 from docopt import docopt
 
 from . import __version__
+from .ema import optimize_ema_span
 from .order import close_positions
 from .trader import AutoTrader
 
@@ -149,14 +158,24 @@ def main():
             retry_count=int(args['--retry-count']), log_dir_path=None,
             quiet=args['--quiet'], dry_run=args['--dry-run']
         ).invoke()
-    elif args.get('close'):
+    else:
         oanda_api = _create_oanda_api(
             api_token=oanda_api_token, environment=args['--oanda-env']
         )
-        close_positions(
-            api=oanda_api, account_id=oanda_account_id,
-            instruments=args['<instrument>']
-        )
+        if args.get('close'):
+            close_positions(
+                api=oanda_api, account_id=oanda_account_id,
+                instruments=args['<instrument>']
+            )
+        elif args.get('optimize'):
+            optimize_ema_span(
+                api=oanda_api, account_id=oanda_account_id,
+                min_span=int(args['--min-span']),
+                max_span=int(args['--max-span']),
+                n_splits=int(args['--n-splits']),
+                granularity=args['--granularity'], count=int(args['--count']),
+                instruments=args['<instrument>']
+            )
 
 
 def _set_log_config(debug=None, info=None):
