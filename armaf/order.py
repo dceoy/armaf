@@ -6,10 +6,12 @@ from pprint import pformat
 
 
 def close_positions(api, account_id, instruments=None):
-    assert account_id, 'account ID required'
     logger = logging.getLogger(__name__)
     logger.info('Position closing')
-    pos_res = api.position.list_open(accountID=account_id)
+    if not account_id:
+        raise ValueError('account ID required')
+    else:
+        pos_res = api.position.list_open(accountID=account_id)
     _log_response(pos_res, logger=logger)
     positions = pos_res.body['positions']
     insts_to_close = list()

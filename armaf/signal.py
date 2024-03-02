@@ -28,7 +28,8 @@ class SignalDetector(object):
         self.arima_q_range = arima_q_range
         for k in 'pdq':
             a, b = getattr(self, f'arima_{k}_range')
-            assert 0 <= a <= b, f'invalid ARIMA {k} range'
+            if not (0 <= a <= b):
+                raise ValueError(f'invalid ARIMA {k} range')
         self.volume_factor = volume_factor
         self.min_sample_size = (
             max(self.trigger_ssr_window, self.trend_ssr_window)

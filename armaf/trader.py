@@ -258,8 +258,10 @@ class OandaTraderCore(object):
                         self.price_dict[instrument]['ask']
                         / self.price_dict[i]['ask']
                     )
-            assert bpv, f'bp value calculatiton failed: {instrument}'
-        return bpv
+        if not bpv:
+            raise RuntimeError(f'bp value calculatiton failed: {instrument}')
+        else:
+            return bpv
 
     def design_and_place_order(self, instrument, act):
         p = self.position_dict.get(instrument)
