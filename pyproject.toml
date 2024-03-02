@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "armaf"
+description = "ARIMA-based Forex Trader for Oanda API"
+authors = [{name = "Daichi Narushima", email = "dnarsil+github@gmail.com"}]
+maintainers = [{name = "Daichi Narushima", email = "dnarsil+github@gmail.com"}]
+license = {file = "LICENSE"}
+readme = "README.md"
+dynamic = ["version"]
+requires-python = ">= 3.10"
+dependencies = [
+  "docopt >= 0.6.2",
+  "numpy >= 1.26.4",
+  "pandas >= 2.2.0",
+  "python-dateutil >= 2.8.2",
+  "pyyaml >= 6.0.1",
+  "scikit-learn >= 1.4.1.post1",
+  "scipy >= 1.12.0",
+  "statsmodels >= 0.14.1",
+  "v20 >= 3.0.25.0"
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Intended Audience :: Financial and Insurance Industry",
+  "Topic :: Office/Business :: Financial :: Investment"
+]
+
+[project.urls]
+Repository = "https://github.com/dceoy/armaf.git"
+
+[project.scripts]
+armaf = "armaf.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "armaf.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["./"]
+include = ["armaf"]
