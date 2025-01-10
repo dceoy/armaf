@@ -118,63 +118,69 @@ from .trader import AutoTrader
 
 
 def main():
-    args = docopt(__doc__, version=f'armaf {__version__}')
-    _set_log_config(debug=args['--debug'], info=args['--info'])
+    args = docopt(__doc__, version=f"armaf {__version__}")
+    _set_log_config(debug=args["--debug"], info=args["--info"])
     logger = logging.getLogger(__name__)
-    logger.debug(f'args:{os.linesep}{args}')
-    oanda_account_id = (args['--oanda-account'] or os.getenv('OANDA_ACCOUNT'))
-    oanda_api_token = (args['--oanda-token'] or os.getenv('OANDA_TOKEN'))
-    if args.get('trade'):
-        logger.info('Autonomous trading')
+    logger.debug(f"args:{os.linesep}{args}")
+    oanda_account_id = args["--oanda-account"] or os.getenv("OANDA_ACCOUNT")
+    oanda_api_token = args["--oanda-token"] or os.getenv("OANDA_TOKEN")
+    if args.get("trade"):
+        logger.info("Autonomous trading")
         AutoTrader(
-            oanda_account_id=oanda_account_id, oanda_api_token=oanda_api_token,
-            oanda_environment=args['--oanda-env'],
-            instruments=args['<instrument>'],
-            granularity=args['--granularity'],
-            betting_strategy=args['--betting-strategy'],
-            margin_lack_reset=args['--margin-lack-reset'],
-            scanned_transaction_count=int(args['--scanned-transaction-count']),
-            unit_margin_ratio=float(args['--unit-margin']),
-            preserved_margin_ratio=float(args['--preserved-margin']),
-            take_profit_limit_ratio=float(args['--take-profit-limit']),
-            trailing_stop_limit_ratio=float(args['--trailing-stop-limit']),
-            stop_loss_limit_ratio=float(args['--stop-loss-limit']),
-            max_spread_ratio=float(args['--max-spread']),
-            sleeping_ratio=float(args['--sleeping']),
-            trigger_ssr_window=args['--trigger-ssr-window'],
-            trigger_test_size=args['--trigger-test-size'],
-            trigger_forecast_size=args['--trigger-forecast-size'],
-            trend_ssr_window=args['--trend-ssr-window'],
-            trend_test_size=args['--trend-test-size'],
-            trend_forecast_size=args['--trend-forecast-size'],
-            significance_level=float(args['--significance-level']),
-            min_arima_p=args['--min-arima-p'],
-            max_arima_p=args['--max-arima-p'],
-            min_arima_d=args['--min-arima-d'],
-            max_arima_d=args['--max-arima-d'],
-            min_arima_q=args['--min-arima-q'],
-            max_arima_q=args['--max-arima-q'],
-            volume_factor=float(args['--volume-factor']),
-            retry_count=int(args['--retry-count']), log_dir_path=None,
-            quiet=args['--quiet'], dry_run=args['--dry-run']
+            oanda_account_id=oanda_account_id,
+            oanda_api_token=oanda_api_token,
+            oanda_environment=args["--oanda-env"],
+            instruments=args["<instrument>"],
+            granularity=args["--granularity"],
+            betting_strategy=args["--betting-strategy"],
+            margin_lack_reset=args["--margin-lack-reset"],
+            scanned_transaction_count=int(args["--scanned-transaction-count"]),
+            unit_margin_ratio=float(args["--unit-margin"]),
+            preserved_margin_ratio=float(args["--preserved-margin"]),
+            take_profit_limit_ratio=float(args["--take-profit-limit"]),
+            trailing_stop_limit_ratio=float(args["--trailing-stop-limit"]),
+            stop_loss_limit_ratio=float(args["--stop-loss-limit"]),
+            max_spread_ratio=float(args["--max-spread"]),
+            sleeping_ratio=float(args["--sleeping"]),
+            trigger_ssr_window=args["--trigger-ssr-window"],
+            trigger_test_size=args["--trigger-test-size"],
+            trigger_forecast_size=args["--trigger-forecast-size"],
+            trend_ssr_window=args["--trend-ssr-window"],
+            trend_test_size=args["--trend-test-size"],
+            trend_forecast_size=args["--trend-forecast-size"],
+            significance_level=float(args["--significance-level"]),
+            min_arima_p=args["--min-arima-p"],
+            max_arima_p=args["--max-arima-p"],
+            min_arima_d=args["--min-arima-d"],
+            max_arima_d=args["--max-arima-d"],
+            min_arima_q=args["--min-arima-q"],
+            max_arima_q=args["--max-arima-q"],
+            volume_factor=float(args["--volume-factor"]),
+            retry_count=int(args["--retry-count"]),
+            log_dir_path=None,
+            quiet=args["--quiet"],
+            dry_run=args["--dry-run"],
         ).invoke()
     else:
         oanda_api = _create_oanda_api(
-            api_token=oanda_api_token, environment=args['--oanda-env']
+            api_token=oanda_api_token, environment=args["--oanda-env"]
         )
-        if args.get('close'):
+        if args.get("close"):
             close_positions(
-                api=oanda_api, account_id=oanda_account_id,
-                instruments=args['<instrument>']
+                api=oanda_api,
+                account_id=oanda_account_id,
+                instruments=args["<instrument>"],
             )
-        elif args.get('optimize'):
+        elif args.get("optimize"):
             optimize_ema_span(
-                api=oanda_api, account_id=oanda_account_id,
-                min_span=int(args['--min-span']),
-                max_span=int(args['--max-span']),
-                n_splits=int(args['--n-splits']),
-                granularity=args['--granularity'], count=int(args['--count']),
-                instruments=args['<instrument>']
+                api=oanda_api,
+                account_id=oanda_account_id,
+                min_span=int(args["--min-span"]),
+                max_span=int(args["--max-span"]),
+                n_splits=int(args["--n-splits"]),
+                granularity=args["--granularity"],
+                count=int(args["--count"]),
+                instruments=args["<instrument>"],
             )
 
 
@@ -186,15 +192,17 @@ def _set_log_config(debug=None, info=None):
     else:
         lv = logging.WARNING
     logging.basicConfig(
-        format='%(asctime)s %(levelname)-8s %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S', level=lv
+        format="%(asctime)s %(levelname)-8s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        level=lv,
     )
 
 
-def _create_oanda_api(api_token, environment='trade', stream=False, **kwargs):
+def _create_oanda_api(api_token, environment="trade", stream=False, **kwargs):
     return v20.Context(
-        hostname='{0}-fx{1}.oanda.com'.format(
-            ('stream' if stream else 'api'), environment
+        hostname="{0}-fx{1}.oanda.com".format(
+            ("stream" if stream else "api"), environment
         ),
-        token=api_token, **kwargs
+        token=api_token,
+        **kwargs,
     )

@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     image: dceoy/armaf:latest
     volumes:
-      - ${PWD}:/wd
+      - .:/wd
     working_dir: /wd
     entrypoint:
       - armaf

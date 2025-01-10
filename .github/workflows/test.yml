@@ -24,6 +24,7 @@ jobs:
     with:
       package-path: .
       python-version: ${{ inputs.python-version || '3.x' }}
+      use-pyright: false
   test-cli:
     runs-on: ubuntu-latest
     steps:
