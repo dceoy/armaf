@@ -1,29 +1,39 @@
-FROM ubuntu:latest
+# syntax=docker/dockerfile:1
+ARG PYTHON_VERSION=3.13
+FROM public.ecr.aws/docker/library/python:${PYTHON_VERSION}-slim
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONIOENCODING=utf-8
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV PIP_NO_CACHE_DIR=1
 
-ADD https://bootstrap.pypa.io/get-pip.py /tmp/get-pip.py
-ADD . /tmp/armaf
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
-RUN set -e \
-      && ln -sf bash /bin/sh \
-      && ln -s python3 /usr/bin/python
+RUN \
+      rm -f /etc/apt/apt.conf.d/docker-clean \
+      && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' \
+        > /etc/apt/apt.conf.d/keep-cache
 
-RUN set -e \
-      && apt-get -y update \
-      && apt-get -y dist-upgrade \
+RUN \
+      --mount=type=cache,target=/var/cache/apt,sharing=locked \
+      --mount=type=cache,target=/var/lib/apt,sharing=locked \
+      apt-get -y update \
+      && apt-get -y upgrade \
       && apt-get -y install --no-install-recommends --no-install-suggests \
-        apt-transport-https ca-certificates curl python3 python3-distutils \
-        tzdata \
-      && apt-get -y autoremove \
-      && apt-get clean \
-      && rm -rf /var/lib/apt/lists/*
+        ca-certificates curl tzdata
 
-RUN set -e \
-      && /usr/bin/python3 /tmp/get-pip.py \
-      && pip install -U --no-cache-dir /tmp/armaf \
-      && rm -rf /tmp/get-pip.py /tmp/armaf
+RUN \
+      --mount=type=cache,target=/root/.cache \
+      --mount=type=bind,source=.,target=/mnt/host \
+      cp -a /mnt/host /tmp/armaf \
+      && /usr/local/bin/python -m pip install --prefix /usr \
+        /tmp/armaf \
+      && rm -rf /tmp/armaf
 
-ENV TZ America/New_York
+ENV TZ=America/New_York
 
-ENTRYPOINT ["/usr/local/bin/armaf"]
+HEALTHCHECK NONE
+
+ENTRYPOINT ["/usr/local/bin/python", "-m", "armaf"]
